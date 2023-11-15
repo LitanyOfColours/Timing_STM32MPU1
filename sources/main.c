@@ -26,7 +26,7 @@
 void *thread_func(void *data)
 {
         /* Do RT specific stuff here */
-    /*
+    
     struct timespec time_keeper;
     struct timespec time_write;
     struct timespec time_read;
@@ -95,7 +95,7 @@ void *thread_func(void *data)
 
 
     //close the device
-    close(fd);*/
+    close(fd);
     return NULL;
 }
 
@@ -133,7 +133,7 @@ int main(int argc, char * argv [])
             printf("pthread setschedpolicy failed\n");
             goto out;
     }
-    param.sched_priority = 80;
+    param.sched_priority = 99;
     ret = pthread_attr_setschedparam(&attr, &param);
     if (ret) {
             printf("pthread setschedparam failed\n");
