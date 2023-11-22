@@ -23,16 +23,31 @@
 
 //#define DEBUG_MESSAGES
 
+struct period_info {
+        struct timespec next_period;
+        long period_ns;
+};
+ 
+static void inc_period(struct period_info *pinfo) 
+{
+        pinfo->next_period.tv_nsec += pinfo->period_ns;
+ 
+        while (pinfo->next_period.tv_nsec >= 1000000000) {
+                /* timespec nsec overflow */
+                pinfo->next_period.tv_sec++;
+                pinfo->next_period.tv_nsec -= 1000000000;
+        }
+}
+
 
 void *thread_func(void *data)
 {    
     struct timespec time_keeper;
     struct timespec time_write;
     struct timespec time_read;
-    struct timespec wait_time;
+    struct period_info wait_time;
 
-    wait_time.tv_sec = 0;
-    wait_time.tv_nsec = 1000000000;
+    wait_time.period_ns = 10000;
 
     bool waiting = false;
     int err = -1;
@@ -43,6 +58,7 @@ void *thread_func(void *data)
     int fd = open(TTY_RPMSG0, O_RDWR | O_NOCTTY | O_SYNC | O_NDELAY);
 
     clock_gettime(CLOCK_MONOTONIC, &time_keeper);
+    clock_gettime(CLOCK_MONOTONIC, &wait_time.next_period);
     printf("Time of start [us]: %ld \n",time_keeper.tv_nsec/1000);
 
     //simple print for debug
@@ -78,7 +94,8 @@ void *thread_func(void *data)
             waiting = false;
         }
 
-        clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &wait_time, NULL);
+        inc_period(&wait_time); 
+        clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &wait_time.next_period, NULL);
     }
     /*
     while(1)
