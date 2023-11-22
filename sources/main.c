@@ -42,21 +42,27 @@ static void inc_period(struct period_info *pinfo)
 
 void *thread_func(void *data)
 {    
+    //setup timing structures
     struct timespec time_keeper;
     struct timespec time_write;
     struct timespec time_read;
     struct period_info wait_time;
 
+    //specify wait period for task
     wait_time.period_ns = 100000;
 
+    //variables for the control of read-write operation
     bool waiting = false;
     int err = -1;
 
+    //dummy message to send and buffer to read from file
     char msg [] = "echo";
     char buffer [50];
 
+    //open RPMsg file
     int fd = open(TTY_RPMSG0, O_RDWR | O_NOCTTY | O_SYNC | O_NDELAY);
 
+    //log time of start and setup first trigger point
     clock_gettime(CLOCK_MONOTONIC, &time_keeper);
     clock_gettime(CLOCK_MONOTONIC, &wait_time.next_period);
     printf("Time of start [us]: %ld \n",time_keeper.tv_nsec/1000);
@@ -67,36 +73,42 @@ void *thread_func(void *data)
     
     while(1)
     {
-        //Debug print
+        //Debug print for iteration cycle time
         long int prev_time = time_keeper.tv_nsec;
         clock_gettime(CLOCK_MONOTONIC, &time_keeper);
         clock_gettime(CLOCK_MONOTONIC, &wait_time.next_period);
         printf("Iteration time: %ld\n", (time_keeper.tv_nsec - prev_time)/1000);
 
+        //write to RPMsg if not already waiting for message
         if(!waiting)
             err = write(fd, msg, sizeof(msg));
         else
             err = -1;
 
+        //save time of write operation
         if (err != -1)
         {
             waiting = true;
             clock_gettime(CLOCK_MONOTONIC, &time_write);
         }
 
+        //read from RPMsg if waiting for response
         if(waiting)
             err = read(fd,&buffer,sizeof(buffer));
         else
             err = -1;
 
+        //save time of read operation
         if (err != -1)
         {
             clock_gettime(CLOCK_MONOTONIC, &time_read);
 
+            //log calculated RTT
             printf("RTT [us]: %ld \n", (time_read.tv_nsec - time_write.tv_nsec)/1000);
             waiting = false;
         }
 
+        //calculate next thread wakeup time and put thread to sleep
         inc_period(&wait_time); 
         clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &wait_time.next_period, NULL);
     }
