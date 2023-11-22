@@ -47,7 +47,7 @@ void *thread_func(void *data)
     struct timespec time_read;
     struct period_info wait_time;
 
-    wait_time.period_ns = 10000;
+    wait_time.period_ns = 100000;
 
     bool waiting = false;
     int err = -1;
@@ -68,8 +68,10 @@ void *thread_func(void *data)
     while(1)
     {
         //Debug print
-        //clock_gettime(CLOCK_MONOTONIC, &time_keeper);
-        //printf("I am still alive at time: %ld\n", time_keeper.tv_nsec/1000);
+        long int prev_time = time_keeper.tv_nsec;
+        clock_gettime(CLOCK_MONOTONIC, &time_keeper);
+        clock_gettime(CLOCK_MONOTONIC, &wait_time.next_period);
+        printf("Iteration time: %ld\n", (time_keeper.tv_nsec - prev_time)/1000);
 
         if(!waiting)
             err = write(fd, msg, sizeof(msg));
