@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
+#include <stdbool.h>
 
 //#include <linux/rpmsg.h>
 
@@ -24,21 +25,79 @@
 
 
 void *thread_func(void *data)
-{
-        /* Do RT specific stuff here */
-    
+{    
     struct timespec time_keeper;
     struct timespec time_write;
     struct timespec time_read;
+    struct timespec wait_time;
 
-    clock_gettime(CLOCK_REALTIME, &time_keeper);
-    printf("Time of start [us]: %ld \n",time_keeper.tv_nsec/1000);
+    wait_time.tv_sec = 0;
+    wait_time.tv_nsec = 1000000000;
+
+    bool waiting = false;
+    int err = -1;
+
     char msg [] = "echo";
     char buffer [50];
 
-
-    //open the device
     int fd = open(TTY_RPMSG0, O_RDWR | O_NOCTTY | O_SYNC | O_NDELAY);
+
+    clock_gettime(CLOCK_MONOTONIC, &time_keeper);
+    printf("Time of start [us]: %ld \n",time_keeper.tv_nsec/1000);
+
+    //simple print for debug
+    //int err =    write(fd, msg, sizeof(msg));
+    //printf("err: %d", err);
+    
+    while(1)
+    {
+        clock_gettime(CLOCK_MONOTONIC, &time_keeper);
+        printf("I am still alive at time: %ld\n", time_keeper.tv_nsec/1000);
+
+        if(!waiting)
+            err = write(fd, msg, sizeof(msg));
+        else
+            err = -1;
+
+        if (err != -1)
+        {
+            waiting = true;
+            clock_gettime(CLOCK_MONOTONIC, &time_write);
+        }
+
+        if(waiting)
+            err = read(fd,&buffer,sizeof(buffer));
+        else
+            err = -1;
+
+        if (err != -1)
+        {
+            clock_gettime(CLOCK_MONOTONIC, &time_read);
+
+            printf("RTT [us]: %ld \n", (time_read.tv_nsec - time_write.tv_nsec)/1000);
+            waiting = false;
+        }
+
+        clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &wait_time, NULL);
+    }
+    /*
+    while(1)
+    {
+
+        int err = read(fd,&buffer,sizeof(buffer));
+        
+        if (err != -1)
+        {
+            clock_gettime(CLOCK_MONOTONIC, &time_read);
+
+            printf("RTT [us]: %ld \n", (time_read.tv_nsec - time_write.tv_nsec)/1000);
+
+            break;
+        }
+
+    }*/
+        /* Do RT specific stuff here */
+    /*
 
 
     while(1)
@@ -58,7 +117,7 @@ void *thread_func(void *data)
             
             if (err != -1)
             {
-                clock_gettime(CLOCK_REALTIME, &time_write);
+                clock_gettime(CLOCK_MONOTONIC, &time_write);
                 #ifdef DEBUG_MESSAGES
                 printf(buffer);
                 printf("\n");
@@ -80,7 +139,7 @@ void *thread_func(void *data)
             
             if (err != -1)
             {
-                clock_gettime(CLOCK_REALTIME, &time_read);
+                clock_gettime(CLOCK_MONOTONIC, &time_read);
                 #ifdef DEBUG_MESSAGES
                 printf(buffer);
                 #endif
@@ -92,7 +151,7 @@ void *thread_func(void *data)
 
         }
     }
-
+    */
 
     //close the device
     close(fd);
@@ -121,7 +180,7 @@ int main(int argc, char * argv [])
     }
 
     /* Set a specific stack size  */
-    ret = pthread_attr_setstacksize(&attr, PTHREAD_STACK_MIN);
+    ret = pthread_attr_setstacksize(&attr, PTHREAD_STACK_MIN + 1000);
     if (ret) {
         printf("pthread setstacksize failed\n");
         goto out;
@@ -159,6 +218,7 @@ int main(int argc, char * argv [])
             printf("join pthread failed: %m\n");
  
 out:
+    printf("Done all I could");
     return ret;
 /*
     struct timespec time_keeper;
